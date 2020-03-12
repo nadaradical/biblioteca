@@ -48,22 +48,22 @@
                 </div>
             <div class="row">
                 <div class="col" id="available-tags">
-                    Available tags:
+                    Tags disponíveis:
                 </div>
             </div>
             <div class="row">
                 <div class="col">
                     <textarea id="tagEditor"></textarea>
                 </div>
-            </div>
+            </div><br>
             <div class="row">
                 <div class="col">
-                    <input type="text" id="searchbar" class="searchbar" placeholder="Search..">
+                    <input type="text" id="searchbar" class="searchbar" placeholder="Procurar..">
                 </div>
                 <div class="col col-md-auto my-auto" style="display: table;">
-                    <label class="switch" title="Show marked only">
-                        <input type="checkbox" title="Show marked only" onclick="toggle_marked_only()">
-                        <span class="slider round" title="Show marked only" ></span>
+                    <label class="switch" title="Mostrar apenas os marcados">
+                        <input type="checkbox" title="Mostrar apenas os marcados" onclick="toggle_marked_only()">
+                        <span class="slider round" title="Mostrar apenas os marcados" ></span>
                         <label></label>
                     </label>
                 </div>
@@ -237,7 +237,7 @@
                      minLength: 1,
                      delay: 0
                  },
-                 placeholder: 'Filter by tags, e.g. machine-learning, algorithms, computer-programming, conferences,  ...',
+                 placeholder: 'Filtrar tags, e.x. ficção-policial, não-ficção, obra-referencia, livro, manuais,  ...',
                  onChange: onTagChange,
              });
 
