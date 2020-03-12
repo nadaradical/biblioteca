@@ -41,6 +41,7 @@
         <a href="https://github.com/nadaradical/biblioteca.nadaradical.com/" class="github-corner" aria-label="Ver o código de fonte no GitHub"><svg width="80" height="80" viewBox="0 0 250 250" style="fill:#151513; color:#fff; position: absolute; top: 0; border: 0; right: 0;" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a><style>.github-corner:hover .octo-arm{animation:octocat-wave 560ms ease-in-out}@keyframes octocat-wave{0%,100%{transform:rotate(0)}20%,60%{transform:rotate(-25deg)}40%,80%{transform:rotate(10deg)}}@media (max-width:500px){.github-corner:hover .octo-arm{animation:none}.github-corner .octo-arm{animation:octocat-wave 560ms ease-in-out}}</style>        <div class="container">
             <div class="row">
                 <div class="col">
+                    <img src="favicon.png" alt="Icon" height="100px" width="100px">
                     <h1>Biblioteca Nada Radical</h1>
                 </div>
             </div>
@@ -56,6 +57,18 @@
             </div>
             <div class="row">
                 <div class="col">
+                    <input type="text" id="searchbar" class="searchbar" placeholder="Search..">
+                </div>
+                <div class="col col-md-auto my-auto" style="display: table;">
+                    <label class="switch" title="Show marked only">
+                        <input type="checkbox" title="Show marked only" onclick="toggle_marked_only()">
+                        <span class="slider round" title="Show marked only" ></span>
+                        <label></label>
+                    </label>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col">
                     <div id="booksList"></div>
                 </div>
             </div>
@@ -63,12 +76,22 @@
         <script>
 
         var bookshelf;
+        var MIN_TOKEN_LEN = 3;
+        var filtered_items = new Set()
+        var saved_tags = []
+        var marked_only = false
+
         fetch('./bookshelf.tsv')
             .then(function(response) {
               return response.text();
           }).then(function(text){
                 main(text);
           });
+
+        function toggle_marked_only() {
+                marked_only = !marked_only
+                onTagChange(null, null, saved_tags)
+            }
 
 
         function getItemFromLine(line){
@@ -86,9 +109,28 @@
             return tags
         }
 
+        function getSubwordsFromName(name){
+            var words = name.toLowerCase().replace('-', ' ').replace(/[^0-9a-z ]/gi, '').split(" ")
+            var tokens = new Set()
+            for (var word of words)
+            {
+                for( var i = MIN_TOKEN_LEN; i <= word.length; i++)
+                {
+                    tokens.add(word.substring(0, i))
+                }
+            }
+            return tokens
+        }
+
+        function getTokensFromName(name){
+            var tokens = name.toLowerCase().replace('-', ' ').replace(/[^0-9a-z ]/gi, '').split(" ")
+            return tokens
+        }
+
         function parseBookshelfFile(text){
             var tag2items = new Map();
             var item2tags = new Map();
+            var word2items = new Map();
 
             lines = text.split("\n");
             for (var i=1; i<lines.length-1; i++){
@@ -96,6 +138,17 @@
                 var b = getItemFromLine(cur_line);
                 var tags = getTagsFromLine(cur_line);
                 item2tags.set(b, tags);
+                var name = b.name;
+                var words = getSubwordsFromName(name);
+                for (var word of words)
+                {
+                    if(word.length < MIN_TOKEN_LEN)
+                        continue
+                    if (!(word2items.has(word))) {
+                        word2items.set(word, new Set());
+                    }
+                    word2items.get(word).add(b);
+                }
                 for (var cur_tag of tags){
                     if (!(tag2items.has(cur_tag))){
                         tag2items.set(cur_tag, new Set());
@@ -104,20 +157,31 @@
                 }
 
             }
-            return new Bookshelf(item2tags, tag2items);
+            return new Bookshelf(item2tags, tag2items, word2items);
         }
 
         function buildItemList(items, bookshelf){
             var list = "";
             for (var item of items){
+                var is_checked = bookshelf.checked_elems.has(item.name)? 'checked' : ''
+                if (!is_checked && marked_only)
+                    continue
                 var item_tags = bookshelf.item2tags.get(item);
                 var item_array = Array.from(item_tags);
                 var tag_string = item_array.join(", ");
-                var dot = "<li><a href='" + item.link +
-                    "' title='" + tag_string + "'>" + item.name + "</a></li>";
+                var dot = `<li><input type='checkbox' item_name="${item.name}" ${is_checked} onclick="manage_click(this)"><a href='${item.link}' title='${tag_string}'>${item.name}</a></li>`;
                 list = list + "\n" + dot;
             }
             return "<ul>" + list + "</ul>\n";
+        }
+
+        function manage_click(obj){
+            if (obj.checked){
+                bookshelf.checked_elems.add(obj.getAttribute("item_name"))
+            } else {
+                bookshelf.checked_elems.delete(obj.getAttribute("item_name"))
+            }
+            localStorage.setItem('checked_elems', JSON.stringify([...bookshelf.checked_elems]))
         }
 
         function findItemsFromTagListAND(tags, bookshelf){
@@ -140,22 +204,27 @@
         }
 
         function onTagChange(field, editor, tags) {
-            $("#booksList").empty();
-            if (tags.length==0 || field==null){
-                $("#booksList").append("<h2>Todas as tags</h2>");
-                tags = bookshelf.tag2items.keys();
+            saved_tags = tags
+            // console.log(tags)
+            $("#bookList").empty();
+            if (tags.length==0){
+                $("#bookList").append("<h2>All tags</h2>");
+                var list = buildItemList(filtered_items, bookshelf);
+                $("#bookList").append(list);
             }
-           else if (tags.length > 1) {
+            else if (tags.length > 1) {
                items = findItemsFromTagListAND(tags, bookshelf);
-               $("#booksList").append("<h2>" + new Array(tags).join(" & ") + "</h2>");
-               var list = buildItemList(items, bookshelf);
-               $("#booksList").append(list);
-           }
+               var intersection = new Set([...items].filter(i => filtered_items.has(i)));
+               $("#bookList").append("<h2>" + new Array(tags).join(" & ") + "</h2>");
+               var list = buildItemList(intersection, bookshelf);
+               $("#bookList").append(list);
+            }
             for (var tag of tags){
                 var items_from_tag = bookshelf.tag2items.get(tag);
-                var list = buildItemList(items_from_tag, bookshelf);
-                $("#booksList").append("<h2>" + tag + "</h2>");
-                $("#booksList").append(list);
+                var intersection = new Set([...items_from_tag].filter(i => filtered_items.has(i)));
+                var list = buildItemList(intersection, bookshelf);
+                $("#bookList").append("<h2>" + tag + "</h2>");
+                $("#bookList").append(list);
             }
         }
 
@@ -167,11 +236,11 @@
                      minLength: 1,
                      delay: 0
                  },
-                 placeholder: 'Insira tags como, p. ex. ficcao, historia, nao-ficcao, papeis, manuais,  ...',
+                 placeholder: 'Filter by tags, e.g. machine-learning, algorithms, computer-programming, conferences,  ...',
                  onChange: onTagChange,
              });
 
-             onTagChange(null, null, tags);
+             onTagChange(null, null, []);
         }
 
         function setup_tag_list(tags){
@@ -183,9 +252,7 @@
                 code_tag.addClass("tag_code tag_off")
                 container.append(code_tag);
                 container.append(" ");
-
             }
-
         }
 
         function onclick_tag(tag){
@@ -207,15 +274,60 @@
             return f;
         }
 
+        function onSearchChanged(value)
+        {
+            if(value.length == 0) {
+                filtered_items = new Set(bookshelf.item2tags.keys())
+                onTagChange(null, null, saved_tags)
+                return
+            }
+            var tokens = getTokensFromName(value);
+            // console.log('tokens: ' + tokens)
+            filtered_items = new Set()
+            var cleared = true
+            for (var token of tokens) {
+                if (token.length < MIN_TOKEN_LEN)
+                    continue
+                if(cleared) {
+                    cleared = false
+                    filtered_items = bookshelf.getItemsFromWord(token)
+                    // console.log('query: ' + token)
+                    // console.log('cleared: ' + Array.from(filtered_items))
+                }
+                else {
+                    filtered_items = new Set([...bookshelf.getItemsFromWord(token)].filter(i => filtered_items.has(i)));
+                    // console.log('intersected: ' + Array.from(filtered_items))
+                }
+            }
+            // console.log(filtered_items)
+            onTagChange(null, null, saved_tags)
+            return
+        }
+
+        function setup_search_bar()
+        {
+            var oldVal = "";
+            $("#searchbar").on("change keyup paste", function () {
+                var currentVal = $(this).val();
+                if (currentVal == oldVal) {
+                    return; //check to prevent multiple simultaneous triggers
+                }
+
+                oldVal = currentVal;
+                // console.log(currentVal)
+                onSearchChanged(currentVal)
+            });
+        }
+
         function main(text){
             bookshelf = parseBookshelfFile(text);
+            filtered_items = new Set(bookshelf.item2tags.keys())
             var tags = bookshelf.tag2items.keys();
-            var tag_array = Array.from(tags);
-
+            var tag_array = Array.from(tags).sort();
+            
+            setup_search_bar();
             setup_tag_editor(tag_array);
             setup_tag_list(tag_array);
-
-
         }
 
         </script>
